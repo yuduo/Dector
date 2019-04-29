@@ -15,10 +15,11 @@ mode = GPIO.getmode()
 print(mode)
 
 GPIO.setup(12, GPIO.OUT)
+GPIO.output(12, GPIO.LOW)
 
-IM_WIDTH = 1280
-IM_HEIGHT = 1280 
-FRAME_RATE = 10
+IM_WIDTH = 640
+IM_HEIGHT = 480 
+FRAME_RATE = 30
 
 # Dimensions of suit train images
 SUIT_WIDTH = 70
@@ -31,12 +32,15 @@ time.sleep(1) # Give the camera time to warm up
 
 cam_quit = 0 # Loop control variable
 
-cv2.namedWindow('images',cv2.WINDOW_NORMAL)
+cv2.namedWindow('images',cv2.WINDOW_AUTOSIZE)#NORMAL)
 # cv2.namedWindow('mask',cv2.WINDOW_NORMAL)
 
 # Load the train rank and suit images
 path = os.path.dirname(os.path.abspath(__file__))
 trainImg = cv2.imread(path+'/Card_Imgs/Diamonds1.jpg', cv2.IMREAD_GRAYSCALE)
+trainImg2 = cv2.imread(path+'/Card_Imgs/Diamonds2.jpg', cv2.IMREAD_GRAYSCALE)
+trainImg3 = cv2.imread(path+'/Card_Imgs/Diamonds3.jpg', cv2.IMREAD_GRAYSCALE)
+trainImg4 = cv2.imread(path+'/Card_Imgs/Diamonds4.jpg', cv2.IMREAD_GRAYSCALE)
 # Begin capturing frames
 while cam_quit == 0:
 
@@ -58,8 +62,10 @@ while cam_quit == 0:
 	# loop over the boundaries
 	#for (lower, upper) in boundaries:
     # create NumPy arrays from the boundaries
-    lower = np.array([10, 100, 100], dtype = "uint8")
-    upper = np.array([30, 255, 255], dtype = "uint8")
+    # lower = np.array([16, 166, 166], dtype = "uint8")
+    # upper = np.array([30, 255, 255], dtype = "uint8")
+    upper = np.array([0, 242, 242], dtype = "uint8")
+    lower = np.array([16, 166, 166], dtype = "uint8")
 
     imgHSV= cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
 
@@ -81,31 +87,39 @@ while cam_quit == 0:
     # Find bounding rectangle for largest contour, use it to resize query rank
     # image to match dimensions of the train rank image
     if len(Qrank_cnts) != 0:
-        # size = cv2.contourArea(Qrank_cnts[0])
-        # peri = cv2.arcLength(Qrank_cnts[0],True)
-        # approx = cv2.approxPolyDP(Qrank_cnts[0],0.01*peri,True)
-        
-        # #if ((size < 2) and (size > CARD_MIN_AREA)
-        # #    and (hier_sort[i][3] == -1) and (len(approx) == 4)):
-        # if (len(approx) != 4):
-        #     continue
-        x1,y1,w1,h1 = cv2.boundingRect(Qrank_cnts[0])
-        Qsuit_roi = thresh[y1:y1+h1, x1:x1+w1]
-        Qsuit_sized = cv2.resize(Qsuit_roi, (SUIT_WIDTH, SUIT_HEIGHT), 0, 0)
+        for cnt in Qrank_cnts:
+            cnt_len = cv2.arcLength(cnt, True)
+            cnt = cv2.approxPolyDP(cnt, 0.02 * cnt_len, True)
+            if len(cnt) == 4:
+                x1,y1,w1,h1 = cv2.boundingRect(Qrank_cnts[0])
+                Qsuit_roi = thresh[y1:y1+h1, x1:x1+w1]
+                Qsuit_sized = cv2.resize(Qsuit_roi, (SUIT_WIDTH, SUIT_HEIGHT), 0, 0)
 
-        diff_img = cv2.absdiff(Qsuit_sized, trainImg)
-        rank_diff = int(np.sum(diff_img)/255)
-        cv2.putText(image,"diff:"+str(rank_diff),(10,26),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,255),2,cv2.LINE_AA)
-        if rank_diff < 1400:
-            cv2.putText(image,"success detected",(10,26),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,255),2,cv2.LINE_AA)
-            GPIO.output(12, GPIO.HIGH)
-        else:
-            GPIO.output(12, GPIO.LOW)
-           # time.sleep(1)
-            
-        #GPIO.clean()
-        cv2.imshow("train", trainImg)
-        cv2.imshow("contour", Qsuit_sized)
+                diff_img = cv2.absdiff(Qsuit_sized, trainImg)   
+                rank_diff = int(np.sum(diff_img)/255)
+
+                diff_img2 = cv2.absdiff(Qsuit_sized, trainImg2)   
+                rank_diff2 = int(np.sum(diff_img2)/255)
+
+
+                diff_img3 = cv2.absdiff(Qsuit_sized, trainImg3)   
+                rank_diff3 = int(np.sum(diff_img3)/255)
+
+                diff_img4 = cv2.absdiff(Qsuit_sized, trainImg4)   
+                rank_diff4 = int(np.sum(diff_img4)/255)
+
+                cv2.putText(image,"diff:"+str(rank_diff),(10,26),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,255),2,cv2.LINE_AA)
+                if rank_diff < 1400 or rank_diff2 < 1400 or rank_diff3 < 1400 or rank_diff4 < 1400:
+                    cv2.putText(image,"success detected",(10,46),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,0,255),2,cv2.LINE_AA)
+                    GPIO.output(12, GPIO.HIGH)
+            # else:
+                # GPIO.output(12, GPIO.LOW)
+                # time.sleep(1)
+                    
+                #GPIO.clean()
+                cv2.imshow("train", trainImg)
+                cv2.imshow("contour", Qsuit_sized)
+                break
 
     # show the images
     cv2.imshow("output", output)
@@ -122,5 +136,6 @@ while cam_quit == 0:
         cam_quit = 1
 
 # Close all windows and close the PiCamera video stream.
+GPIO.cleanup()
 cv2.destroyAllWindows()
 videostream.stop()
